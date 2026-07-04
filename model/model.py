@@ -4,17 +4,66 @@ import torch.nn.functional as F
 
 torch.manual_seed(42)
 
+text = """
+hello world.
+this is my first transformer language model.
+i am learning how tokenizers work.
+the model reads text and predicts the next character.
+transformers use attention to understand context.
+hello again.
+"""
+
+
+# Character-level vocabulary
+chars = sorted(list(set(text)))
+
+# Token -> integer ID
+stoi = {ch: i for i, ch in enumerate(chars)}
+
+# Integer ID -> token
+itos = {i: ch for ch, i in stoi.items()}
+
+vocab_size = len(chars)
+
+print("Vocabulary size:", vocab_size)
+print("Vocabulary:", chars)
+
+
+class CharTokenizer:
+    def __init__(self, stoi, itos):
+        self.stoi = stoi
+        self.itos = itos
+
+    def encode(self, text):
+        
+        return [self.stoi[ch] for ch in text]
+
+    def decode(self, ids):
+
+        return "".join(self.itos[i] for i in ids)
+
+
+tokenizer = CharTokenizer(stoi, itos)
+
+
+data = torch.tensor(
+    tokenizer.encode(text),
+    dtype=torch.long
+)
+
+print("\nDataset tensor shape:", data.shape)
+print("First token IDs:", data[:20])
+
+
+
 # -----------------------------
 # Hyperparameters
 # -----------------------------
-batch_size = 2
-seq_len = 5
 embed_dim = 8
 num_heads = 2
-head_dim = 4          
+head_dim = 4
 
-# Dummy Input
-X = torch.randn(batch_size, seq_len, embed_dim)
+input_ids = data.unsqueeze(0)
 
 class Head(nn.Module):
     def __init__(self, embed_dim, head_dim):
@@ -30,7 +79,8 @@ class Head(nn.Module):
         V = self.WV(X)
 
         scores = (Q @ K.transpose(-2, -1)) / (head_dim ** 0.5)
-        mask = torch.tril(torch.ones(seq_len, seq_len))
+        seq_len = X.size(1)
+        mask = torch.tril(torch.ones(seq_len, seq_len, device=X.device))
         scores = scores.masked_fill(mask == 0, float("-inf"))
         weights = F.softmax(scores, dim=-1)
         output = weights @ V
@@ -87,20 +137,23 @@ class TransformerBlocks(nn.Module):
         return X
     
 class Transformer(nn.Module):
-    def __init__(self, embed_dim, num_heads, head_dim):
+    def __init__(self, embed_dim, num_heads, head_dim, vocab_size):
         super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
         self.blocks = TransformerBlocks(embed_dim, num_heads, head_dim)
         self.ln_f = nn.LayerNorm(embed_dim)
         self.lm_head = nn.Linear(embed_dim, embed_dim)
-    def forward(self, X):
+
+    def forward(self, input_ids):
+        X = self.embedding(input_ids)
         X = self.blocks(X)
         X = self.ln_f(X)
         logits = self.lm_head(X)
-        return logits   
-    
-print(X.shape)
-model = Transformer(embed_dim, num_heads, head_dim)
+        return logits
 
-output = model(X)
-print(output.shape)
+print("Input IDs shape:", input_ids.shape)
+model = Transformer(embed_dim, num_heads, head_dim, vocab_size)
+
+output = model(input_ids)
+print("Output shape:", output.shape)
 print(output)
