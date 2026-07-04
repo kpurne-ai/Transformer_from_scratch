@@ -62,8 +62,10 @@ print("First token IDs:", data[:20])
 embed_dim = 8
 num_heads = 2
 head_dim = 4
+max_seq_len = 512
 
-input_ids = data.unsqueeze(0)
+device = torch.device("mps" if torch.mps.is_available() else "cpu")
+input_ids = data.unsqueeze(0).to(device)
 
 class Head(nn.Module):
     def __init__(self, embed_dim, head_dim):
@@ -137,22 +139,25 @@ class TransformerBlocks(nn.Module):
         return X
     
 class Transformer(nn.Module):
-    def __init__(self, embed_dim, num_heads, head_dim, vocab_size):
+    def __init__(self, embed_dim, num_heads, head_dim, vocab_size, max_seq_len):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.pos_embedding = nn.Embedding(max_seq_len, embed_dim)
         self.blocks = TransformerBlocks(embed_dim, num_heads, head_dim)
         self.ln_f = nn.LayerNorm(embed_dim)
         self.lm_head = nn.Linear(embed_dim, embed_dim)
 
     def forward(self, input_ids):
-        X = self.embedding(input_ids)
+        seq_len = input_ids.size(1)
+        position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(input_ids.size(0), -1)
+        X = self.embedding(input_ids) + self.pos_embedding(position_ids)
         X = self.blocks(X)
         X = self.ln_f(X)
         logits = self.lm_head(X)
         return logits
 
 print("Input IDs shape:", input_ids.shape)
-model = Transformer(embed_dim, num_heads, head_dim, vocab_size)
+model = Transformer(embed_dim, num_heads, head_dim, vocab_size, max_seq_len).to(device)
 
 output = model(input_ids)
 print("Output shape:", output.shape)
