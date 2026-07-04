@@ -132,11 +132,9 @@ class TransformerBlocks(nn.Module):
     def __init__(self, embed_dim, num_heads, head_dim):
         super().__init__()
         self.blocks = nn.Sequential(*[Block(embed_dim, num_heads, head_dim) for _ in range(10)])
-        self.ln_f = nn.LayerNorm(embed_dim)
+
     def forward(self, X):
-        X = self.blocks(X)
-        X = self.ln_f(X)
-        return X
+        return self.blocks(X)
     
 class Transformer(nn.Module):
     def __init__(self, embed_dim, num_heads, head_dim, vocab_size, max_seq_len):
@@ -145,7 +143,7 @@ class Transformer(nn.Module):
         self.pos_embedding = nn.Embedding(max_seq_len, embed_dim)
         self.blocks = TransformerBlocks(embed_dim, num_heads, head_dim)
         self.ln_f = nn.LayerNorm(embed_dim)
-        self.lm_head = nn.Linear(embed_dim, embed_dim)
+        self.lm_head = nn.Linear(embed_dim, vocab_size)
 
     def forward(self, input_ids):
         seq_len = input_ids.size(1)
